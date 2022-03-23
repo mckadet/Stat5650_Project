@@ -1,8 +1,8 @@
 ## Stat5650 Group Project
-## Group Members: 
+## Group Members:
 # - Nate Nellis
 # - Brian Nalley
-# - Will Guillon
+# - Will Gullion
 # - McKade Thomas
 
 ## Libraries Needed
@@ -36,4 +36,3 @@ health <- read.csv("heart_disease_health_indicators.csv")
 # Age, num
 # Education, categorical
 # Income, num
-
