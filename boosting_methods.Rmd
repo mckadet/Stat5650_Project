@@ -1,0 +1,252 @@
+---
+title: "Boosting_Methods"
+author: "McKade Thomas"
+date: "4/20/2022"
+output: pdf_document
+---
+
+## Stat5650 Group Project
+## Group Members:
+# - Nate Nellis
+# - Brian Nalley
+# - Will Gullion
+# - McKade Thomas
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+
+```{r libraries, include = FALSE}
+library(ada)
+library(gbm)
+library(caret)
+library(e1071)
+library(EZtune)
+library(caTools)
+source('kappa_and_class_sum.R')
+```
+
+
+```{r data}
+health <- read.csv("heart_disease_health_indicators.csv")
+
+health <- health %>% mutate(
+  HeartDiseaseorAttack = HeartDiseaseorAttack,
+  HighBP = as.factor(HighBP),  # LASSO approved
+  HighChol = as.factor(HighChol),  # LASSO approved
+  CholCheck = as.factor(CholCheck),
+  ln.BMI = log(BMI),  # RF approved
+  Smoker = as.factor(Smoker),  # LASSO approved
+  Stroke = as.factor(Stroke),  # LASSO 1-SE only, RF approved
+  Diabetes = as.factor(Diabetes),  # LASSO approved, RF approved
+  PhysActivity = as.factor(PhysActivity),
+  Fruits = as.factor(Fruits),
+  Veggies = as.factor(Veggies),
+  HvyAlcoholConsump = as.factor(HvyAlcoholConsump),
+  AnyHealthcare = as.factor(AnyHealthcare),
+  NoDocbcCost = as.factor(NoDocbcCost),  # LASSO approved
+  GenHlth = as.factor(GenHlth),  # LASSO approved, RF approved
+  ln.MentHlth = log(MentHlth + 1), # Probably shouldn't use
+  bin.MentHlth = as.factor(ifelse(MentHlth == 0, 0, 1)),  #RF approved
+  fac.MentHlth = as.factor(MentHlth), # Probably shouldn't use
+  ln.PhysHlth = log(PhysHlth + 1), # Probably shouldn't use
+  bin.PhysHlth = as.factor(ifelse(PhysHlth == 0, 0, 1)),  # LASSO approved, RF approved
+  fac.PhysHlth = as.factor(PhysHlth), # Probably shouldn't use
+  DiffWalk = as.factor(DiffWalk),  # LASSO , RF approved
+  Sex = as.factor(ifelse(Sex == 0, "F", "M")),  # LASSO approved, RF approved
+  Age = as.factor(Age),  # LASSO approved, RF approved
+  Education = as.factor(Education),  # RF approved
+  Income = as.factor(Income)  # LASSO approved, RF approved
+)
+
+# new data with transformed variables
+health_subset <- health[c(1:4, 6:15, 18:23, 25, 28)]
+
+# Train and Test Sets
+health_tmp <- sample.split(health_subset, SplitRatio = 0.3)
+test <- subset(health_subset, health_tmp == TRUE)
+train <- subset(health_subset, health_tmp == FALSE)
+
+## Randomly sample rows
+train_sample <- sample_n(train, 5000)
+```
+
+
+
+## ADA
+```{r ada}
+## Performance on K Folds CV (10 Folds)
+ada.xvalpr = rep(0, nrow(train_sample))
+xvs=rep(1:10, length = nrow(train_sample))
+xvs=sample(xvs)
+for(i in 1:10){
+      train = train_sample[xvs!=i,]
+      test = train_sample[xvs==i,]
+      glub = ada(as.factor(HeartDiseaseorAttack) ~ ., loss = "exponential",
+               data = train, iter = 10, max.iter = 5)
+      ada.xvalpr[xvs==i] = predict(glub, newdata = test, type = "prob")[,2]
+}
+
+class.sum(train_sample$HeartDiseaseorAttack, ada.xvalpr, cap = "CV ADA Performance")
+
+## Performance on Test Set
+health.ada = ada(as.factor(HeartDiseaseorAttack) ~ . ,loss = "exponential", 
+                 data = train_sample, iter = 10, max.iter = 5)
+class.sum(test$HeartDiseaseorAttack, predict(health.ada, newdata = test, type = "prob")[,2], 
+          cap = "Test Data ADA Performance")
+```
+
+
+
+
+## GBM
+```{r gbm}
+## Performance on K Folds CV (10 Folds)
+gbm.xvalpr = rep(0, nrow(train_sample))
+xvs=rep(1:10, length = nrow(train_sample))
+xvs=sample(xvs)
+for(i in 1:10){
+      train = train_sample[xvs!=i,]
+      test = train_sample[xvs==i,]
+      glub=gbm(HeartDiseaseorAttack ~ . ,distribution="bernoulli", 
+               n.trees = 50, data=train)
+      gbm.xvalpr[xvs==i] = predict(glub, newdata = test, 
+                                   type = "response", n.trees=50)
+}
+
+class.sum(train_sample$HeartDiseaseorAttack, gbm.xvalpr, 
+          cap = "CV ADA Performance")
+
+## Performance on Test Set
+health.gbm = gbm(HeartDiseaseorAttack ~ . ,distribution="bernoulli", 
+                 n.trees=50, data=train_sample)
+class.sum(test$HeartDiseaseorAttack, 
+          predict(health.gbm, newdata = test, type = "response", n.trees = 50), 
+          cap = "Test Data ADA Performance")
+```
+
+
+
+## GBM Tuned
+```{r gbm_tuned}
+# fitControl = trainControl(method = "cv", number = 10)
+# gbmGrid = expand.grid(interaction.depth = c(12, 14), n.trees = c(10, 25, 50),
+#                       shrinkage = c(0.01, 0.1), n.minobsinnode=10)
+# gbmFit = train(as.factor(HeartDiseaseorAttack)~ . , method="gbm", 
+#                tuneGrid = gbmGrid, 
+#                trControl = fitControl, 
+#                data = train_sample,
+#                verbose = FALSE)
+# gbmFit
+
+## Performance on K Folds CV (10 Folds)
+gbm.xvalpr = rep(0, nrow(train_sample))
+xvs=rep(1:10, length = nrow(train_sample))
+xvs=sample(xvs)
+for(i in 1:10){
+      train = train_sample[xvs!=i,]
+      test = train_sample[xvs==i,]
+      glub=gbm(HeartDiseaseorAttack ~ . ,distribution="bernoulli", 
+               interaction.depth=14,
+               n.trees=10,
+               shrinkage=0.1,
+               n.minobsinnode=10, 
+               data=train)
+      gbm.xvalpr[xvs==i] = predict(glub, newdata = test, 
+                                   type = "response", n.trees=50)
+}
+
+class.sum(train_sample$HeartDiseaseorAttack, gbm.xvalpr, 
+          cap = "CV ADA Performance")
+
+## Performance on Test Set
+health.gbm = gbm(HeartDiseaseorAttack ~ . ,distribution="bernoulli", 
+                 interaction.depth=14,
+               n.trees=10,
+               shrinkage=0.1,
+               n.minobsinnode=10, 
+               data=train)
+class.sum(test$HeartDiseaseorAttack, 
+          predict(health.gbm, newdata = test, type = "response", n.trees = 50), 
+          cap = "Test Data ADA Performance")
+```
+
+
+
+## SVM
+```{r svm}
+## Performance on K Folds CV (10 Folds)
+svm.xvalpred = rep(0, nrow(train_sample))
+xvs = rep(1:10, length = nrow(train_sample))
+xvs = sample(xvs)
+for(i in 1:10){
+      train = train_sample[xvs!=i,]
+      test = train_sample[xvs==i,]
+      glub = svm(as.factor(HeartDiseaseorAttack) ~ . ,probability=TRUE, 
+                 data = train)
+      svm.xvalpred[xvs==i] = attr(predict(glub, test, probability = TRUE),
+                                "probabilities")[,2]
+}
+
+class.sum(train_sample$HeartDiseaseorAttack, svm.xvalpred, cap = "CV SVM Performance")
+
+## Performance on Test Set
+health.svm=svm(as.factor(HeartDiseaseorAttack)~ . ,probability = TRUE,
+               data = train_sample)
+health.svm.resubpred=predict(health.svm, test, probability=TRUE)
+class.sum(test$HeartDiseaseorAttack, 
+          attr(health.svm.resubpred,"probabilities")[,2], 
+          cap = "Test Data SVM Performance")
+```
+
+
+
+## SVM Tuned
+```{r svm_tuned}
+x = as.matrix(train_sample[,-1])
+y = as.vector(train_sample[,1])
+
+health.svm.tune <- eztune(x, y, method="svm", fast = TRUE, cross = 5)
+health.svm.tune
+## Best hyperparamters:
+#   gamma:  0.03125
+#   cost: 32
+#   loss: 0
+#   n: 200
+
+## Performance on K Folds CV (10 Folds)
+svm.xvalpred = rep(0, nrow(train_sample))
+xvs = rep(1:10, length = nrow(train_sample))
+xvs = sample(xvs)
+for(i in 1:10){
+      train = train_sample[xvs!=i,]
+      test = train_sample[xvs==i,]
+      glub = svm(as.factor(HeartDiseaseorAttack) ~ . ,
+                 probability=TRUE, 
+                 gamma = 0.03125,
+                 cost = 32,
+                 loss = 0,
+                 n = 200,
+                 data = train)
+      svm.xvalpred[xvs==i] = attr(predict(glub, test, probability = TRUE),
+                                "probabilities")[,2]
+}
+
+class.sum(train_sample$HeartDiseaseorAttack, svm.xvalpred, cap = "CV SVM Performance")
+
+## Performance on Test Set
+health.svm = svm(as.factor(HeartDiseaseorAttack)~ . ,
+               probability = TRUE,
+               data = train_sample,
+               gamma = 0.03125,
+               cost = 32,
+               loss = 0,
+               n = 200,)
+health.svm.resubpred=predict(health.svm, test, probability=TRUE)
+class.sum(test$HeartDiseaseorAttack, 
+          attr(health.svm.resubpred,"probabilities")[,2], 
+          cap = "Test Data SVM Performance")
+```
+
