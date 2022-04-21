@@ -25,7 +25,9 @@ library(caret)
 library(e1071)
 library(EZtune)
 library(caTools)
+library(tidyverse)
 source('kappa_and_class_sum.R')
+library(randomForest)
 ```
 
 
@@ -248,5 +250,28 @@ health.svm.resubpred=predict(health.svm, test, probability=TRUE)
 class.sum(test$HeartDiseaseorAttack, 
           attr(health.svm.resubpred,"probabilities")[,2], 
           cap = "Test Data SVM Performance")
+```
+
+
+```{r}
+## UpSample to deal with class imbalance
+new_train <- upSample(train[,2:22], as.factor(train[,1]), list=FALSE)
+new_train$HeartDiseaseorAttack <- new_train$Class
+new_train <- new_train[,-22]
+
+best_features <- new_train %>% dplyr::select(HeartDiseaseorAttack, Age, GenHlth, ln.BMI, Income, HighBP, Education, HighChol)
+
+train_sample <- sample_n(best_features, 10000)
+rf <- randomForest(as.factor(HeartDiseaseorAttack) ~ ., data = train_sample, n.trees = 100,
+                   importance = TRUE)
+# varImpPlot(rf, scale = FALSE)
+# Age really important, then GenHlth, big gap before Stroke and Sex then group at
+# ln.BMI, DiffWalk, Diabetes, bin.MentlHlth, Income, bin.PhysHlth and Education
+# Could probably get rid of everything else.
+# Age, GenHlth, In.BMI, Income, HighBP, Ducation, HighChol}
+
+class.sum(test$HeartDiseaseorAttack, predict(rf, test, type="prob")[,2], cap = "Test Data RF Performance")
+class.sum(train_sample$HeartDiseaseorAttack, predict(rf, type="prob")[,2], cap = "Training Data RF Performance")
+
 ```
 

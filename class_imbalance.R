@@ -11,6 +11,8 @@
 ## Use this command to do it (hit 1 when it asks which libraries to update): 
 # remotes::install_github("cran/DMwR")
 library(DMwR)
+library(tidyverse)
+library(caret)
 
 
 ## Read in the data
@@ -52,5 +54,11 @@ summary(health$HeartDiseaseorAttack)[1] / summary(health$HeartDiseaseorAttack)[2
 
 ## SMOTE for Class Imbalance
 # Docs: https://www.rdocumentation.org/packages/DMwR/versions/0.4.1/topics/SMOTE
-health_balanced <- SMOTE(HeartDiseaseorAttack ~ ., data = health_subset, perc.over = 50, perc.under = 0)
-summary(health_balanced$HeartDiseaseorAttack)
+# health_balanced <- SMOTE(HeartDiseaseorAttack ~ ., data = health_subset, perc.over = 100, perc.under = 10)
+# summary(health_balanced$HeartDiseaseorAttack)
+
+
+health_balanced <- upSample(health_subset[,2:22], as.factor(health_subset[,1]), list=FALSE)
+is.data.frame(lichenUp)
+summary(lichenUp[,"Class"])
+
