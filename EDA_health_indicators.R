@@ -283,6 +283,11 @@ table(health_train$HeartDiseaseorAttack, health_lda_xval)
 table(health_test$HeartDiseaseorAttack, predict(health_lda, health_test)$class)
 # Not sure why it doesn't like this
 
+### Without doing things split into test vs train you can do this to get a cross-validated accuracy. - Nate
+health_lda <- lda(HeartDiseaseorAttack ~ . , CV = TRUE, data = health)
+table(health$HeartDiseaseorAttack, health_lda$class)
+# 89.85%
+
 ## QDA ##
 health_qda <- qda(HeartDiseaseorAttack ~ . , CV = TRUE, data = health_train)
 
