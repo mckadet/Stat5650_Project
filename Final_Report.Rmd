@@ -19,6 +19,7 @@ library(randomForest)
 library(glmnet)
 library(ggplot2)
 library(knitr)
+library(gridExtra)
 ```
 
 ```{r data, include=FALSE}
@@ -71,9 +72,9 @@ We chose to focus on data having to do with heart disease/heart attach indicator
 
 # Exploratory Data Analysis
 
-Taking a closer look at our predictor variable, we noticed that only 9.4% of participants in the survey had heart disease or a heart attack, 23,893 responded yes versus 229,787 who responded no.  This means that we could just predict a 0 for all observations and we could get an accuracy of over 90%. Since we aren't concerned in this instance with a high accuracy, but actually a decent sensitivity (getting accurate results when someone is at risk of a heart attack or heart disease), we utilized Upsampling in some of our methods to skew the model to predict the results we wanted.  This decreased overall accuracy, but resulted in a much better prediction accuracy of finding those people with heart disease or who had a heart attack.
+Taking a closer look at our predictor variable, we noticed that only 9.4% of participants in the survey had heart disease or a heart attack, 23,893 responded yes versus 229,787 who responded no.  This means that we could just predict a 0 for all observations and we could get an accuracy of over 90%. Since we aren't concerned in this instance with a high accuracy, but actually a decent sensitivity (getting accurate results when someone is at risk of a heart attack or heart disease), we utilized Upsampling in some of our methods to skew the model to predict the results we wanted.  This decreased overall accuracy, but resulted in a much better prediction accuracy of finding those people with heart disease or who had a heart attack.  Even with a loss in accuracy, we felt that this was a wise move as predicting someone who has heart disease is much more important than identifying someone who doesn't have heart disease. See the below bar chart to compare the two catagories visually.
 
-```{r, echo=FALSE}
+```{r, echo=FALSE, fig.height=3}
 ggplot(health, aes(HeartDiseaseorAttack)) +
   geom_bar() +
   scale_y_continuous(limits = c(0, 250000), breaks = seq(0, 250000, by = 50000)) +
@@ -83,23 +84,60 @@ ggplot(health, aes(HeartDiseaseorAttack)) +
         panel.background = element_rect(fill = NA))
 ```
 
-When it comes to the predictor variables there are 12 binary, 3 numerical, and 5 factor variables. Having fewer numerical variables is less than desireable, especially when it comes to how the factor variables are coded/binned.  An example of this terrible survey coding is the __Income__ variable where the CDC survey sets the highest bucket capped at `$`75,000+.  Due to how low that is for the maximum response allowed, a full third of the observations fall into that category.
+When it comes to the predictor variables there are 12 binary, 3 numerical, and 5 factor variables. Having fewer numerical variables is less than desireable, especially when it comes to how some of the factor variables are coded/binned.  An example of this terrible survey coding is the __Income__ variable where the CDC survey sets the highest bucket capped at `$`75,000+.  Due to how low that is for the maximum response allowed, a full third of the observations fall into that category.
 
 ```{r, echo=FALSE}
 ggplot(health, aes(Income)) +
   geom_bar() +
-  #scale_y_continuous(limits = c(0, 100000), breaks = seq(0, 100000, by = 25000)) +
+  scale_y_continuous(limits = c(0, 100000), breaks = seq(0, 100000, by = 25000)) +
   ylab("Count") +
   ggtitle("Count of Income Observations") +
   theme(panel.grid.major = element_line(colour = "black"),
         panel.background = element_rect(fill = NA))
 ```
 
+For the three numerical variables, __BMI__, __MentHlth__, and __PhysHlth__, there is a definite skewness that we can see in their distributions.  This is especially true for __PhysHlth__ and __MentHlth__, which are how many times in the last 30 days a survey respondent reported having poor physical or mental health respectively.  A huge percentage of respondents reported zero days, 70% for __MentHlth__ and 63% for __PhysHlth__.  To correct for these skewed variables, we logged __BMI__ to enforce normality constraints.  The For __MentHlth__ and __PhysHlth__ we created binary variables where any value greater than 0 was coded as a 1 and was coded as a 0 otherwise. We originally attempted to log these variables but the skew wasn't reduced very much and we ended up finding that the binary variables worked out much better. These transformations were valuable in the various classification methods that we tried, even though they did reduce our numerical variables to really just the __ln.BMI__ variable.
 
+```{r, echo=FALSE, fig.height=4}
+grid.arrange(
+ggplot(health, aes(BMI)) +
+  geom_histogram(bins=30) +
+  scale_y_continuous(limits = c(0, 75000), breaks = seq(0, 75000, by = 25000)) +
+  ylab("Count") +
+  ggtitle("Histogram of BMI") +
+  theme(panel.grid.major = element_line(colour = "black"),
+        panel.background = element_rect(fill = NA))
+,
+ggplot(health, aes(ln.BMI)) +
+  geom_histogram(bins=30) +
+  scale_y_continuous(limits = c(0, 75000), breaks = seq(0, 75000, by = 25000)) +
+  ylab("Count") +
+  ggtitle("Histogram of Logged BMI") +
+  theme(panel.grid.major = element_line(colour = "black"),
+        panel.background = element_rect(fill = NA))
+,
+nrow = 1)
+grid.arrange(
+ggplot(health, aes(MentHlth)) +
+  geom_histogram(bins=30) +
+  scale_y_continuous(limits = c(0, 200000), breaks = seq(0, 200000, by = 50000)) +
+  ylab("Count") +
+  ggtitle("Histogram of MentHlth") +
+  theme(panel.grid.major = element_line(colour = "black"),
+        panel.background = element_rect(fill = NA))
+,
+ggplot(health, aes(PhysHlth)) +
+  geom_histogram(bins=30) +
+  scale_y_continuous(limits = c(0, 200000), breaks = seq(0, 200000, by = 50000)) +
+  ylab("Count") +
+  ggtitle("Histogram of PhysHlth") +
+  theme(panel.grid.major = element_line(colour = "black"),
+        panel.background = element_rect(fill = NA))
+,
+nrow = 1)
+```
 
-
-
-
+See more information on the variables in the __Data Dictionary__ Section at the end of the document.
 
 
 
@@ -144,6 +182,13 @@ summary(health$CholCheck)
 __BMI__, numerical  
 ```{r}
 summary(health$BMI)
+hist(as.numeric(health$BMI))
+```
+__ln.BMI__, numerical  
+- Logged version of the BMI variable to reduce the impact of outliers and enforce better normality contstraints.  
+```{r}
+summary(health$ln.BMI)
+hist(as.numeric(health$ln.BMI))
 ```
 __Smoker__, binary  
 - Have you smoked at least 100 cigarettes in your entire life?  
@@ -206,10 +251,20 @@ __MentHlth__, numerical
 ```{r}
 summary(health$MentHlth)
 ```
+__bin.MentHlth__, binary  
+- Binary version of __MentHlth__ where 0 days is coded as 0 and any number of days is coded as 1.
+```{r}
+summary(health$bin.MentHlth)
+```
 __PhysHlth__, numerical  
 - Now thinking about your physical health, which includes physical illness and injury, for how many days during the past 30 days was your physical health not good?   
 ```{r}
 summary(health$PhysHlth)
+```
+__bin.PhysHlth__, binary  
+- Binary version of __PhysHlth__ where 0 days is coded as 0 and any number of days is coded as 1.  
+```{r}
+summary(health$bin.PhysHlth)
 ```
 __DiffWalk__, binary  
 - Do you have serious difficulty walking or climbing stairs?  
