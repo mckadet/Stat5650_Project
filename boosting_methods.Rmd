@@ -28,6 +28,7 @@ library(caTools)
 library(tidyverse)
 source('kappa_and_class_sum.R')
 library(randomForest)
+library(glmnet)
 ```
 
 
@@ -253,13 +254,37 @@ class.sum(test$HeartDiseaseorAttack,
 ```
 
 
+
+# Upsample and feature subsets from RF and LASSO
 ```{r}
 ## UpSample to deal with class imbalance
 new_train <- upSample(train[,2:22], as.factor(train[,1]), list=FALSE)
 new_train$HeartDiseaseorAttack <- new_train$Class
 new_train <- new_train[,-22]
 
-best_features <- new_train %>% dplyr::select(HeartDiseaseorAttack, Age, GenHlth, ln.BMI, Income, HighBP, Education, HighChol)
+## Test Set Upsample ##
+new_test <- upSample(test[,2:22], as.factor(test[,1]), list = FALSE)
+new_test$HeartDiseaseorAttack <- new_test$Class
+new_test <- new_test[,-22]
+
+rf_best_features <- new_train %>% dplyr::select(HeartDiseaseorAttack, Age, GenHlth, ln.BMI, Income, HighBP, Education, HighChol)
+
+rf_test_features <- new_test %>% dplyr::select(HeartDiseaseorAttack, Age, GenHlth, ln.BMI, Income, HighBP, Education, HighChol)
+
+lasso_best_features <- new_train %>% dplyr::select(HeartDiseaseorAttack, HighBP,
+                                                   HighChol, CholCheck, Smoker,
+                                                   Stroke, Diabetes, HvyAlcoholConsump,
+                                                   NoDocbcCost, GenHlth, DiffWalk,
+                                                   Sex, Age, Income, bin.PhysHlth)
+
+lasso_test_features <- new_test %>% dplyr::select(HeartDiseaseorAttack, HighBP,
+                                                   HighChol, CholCheck, Smoker,
+                                                   Stroke, Diabetes, HvyAlcoholConsump,
+                                                   NoDocbcCost, GenHlth, DiffWalk,
+                                                   Sex, Age, Income, bin.PhysHlth)
+```
+
+```{r}
 
 train_sample <- sample_n(best_features, 10000)
 rf <- randomForest(as.factor(HeartDiseaseorAttack) ~ ., data = train_sample, n.trees = 100,
@@ -275,3 +300,237 @@ class.sum(train_sample$HeartDiseaseorAttack, predict(rf, type="prob")[,2], cap =
 
 ```
 
+# LASSO
+```{r}
+health_train_x <- data.matrix(new_train[ , 1:21])
+health_train_y <- as.matrix(new_train[ , 22])
+
+health_lasso <- glmnet(health_train_x, health_train_y, family = "binomial",
+                       alpha = 1)
+health_cv_lasso <- cv.glmnet(health_train_x, health_train_y, family = "binomial",
+                             alpha = 1)
+
+## 1-SE ##
+lambda_1se <- health_cv_lasso$lambda.1se
+table(new_train$HeartDiseaseorAttack, predict(health_lasso, health_train_x,
+                                                 s = lambda_1se, type = "class"))
+class.sum(new_train$HeartDiseaseorAttack, predict(health_lasso, health_train_x,
+                                                     s = lambda_1se, type = "response"))
+# PCC = 77.08
+# Specificity = 79.61
+
+coef(health_lasso, s = lambda_1se)
+# Kept  = HighBP, HighChol, CholCheck, Smoker, Stroke, Diabetes, HvyAlcoholConsump,
+# NoDocbcCost, GenHlth, DiffWalk, Sex, Age, Income, bin.PhysHlth
+
+lasso_best_features <- new_train %>% dplyr::select(HeartDiseaseorAttack, HighBP,
+                                                   HighChol, CholCheck, Smoker,
+                                                   Stroke, Diabetes, HvyAlcoholConsump,
+                                                   NoDocbcCost, GenHlth, DiffWalk,
+                                                   Sex, Age, Income, bin.PhysHlth)
+
+lasso_test_features <- new_test %>% dplyr::select(HeartDiseaseorAttack, HighBP,
+                                                   HighChol, CholCheck, Smoker,
+                                                   Stroke, Diabetes, HvyAlcoholConsump,
+                                                   NoDocbcCost, GenHlth, DiffWalk,
+                                                   Sex, Age, Income, bin.PhysHlth)
+
+## Min ##
+lambda_min <- health_cv_lasso$lambda.min
+table(new_train$HeartDiseaseorAttack, predict(health_lasso, health_train_x,
+                                                 s = lambda_min, type = "class"))
+# PCC = 77.06
+# Specificity = 79.38
+
+coef(health_lasso, s = lambda_min)
+# Kept everything but AnyHealthcare and ln.BMI
+
+
+## Test Set Upsample ##
+new_test <- upSample(test[,2:22], as.factor(test[,1]), list = FALSE)
+new_test$HeartDiseaseorAttack <- new_test$Class
+new_test <- new_test[,-22]
+
+health_test_x <- data.matrix(new_test[ , 1:21])
+health_test_y <- as.matrix(new_test[ , 1])
+
+table(new_test$HeartDiseaseorAttack, predict(health_lasso, health_test_x,
+                                                s = lambda_min, type = "class"))
+
+# PCC = 77.09
+# Specificity = 79.34
+
+table(new_test$HeartDiseaseorAttack, predict(health_lasso, health_test_x,
+                                                s = lambda_1se, type = "class"))
+
+# PCC = 77.10
+# Specificity = 79.53
+
+# 1-SE model seems best, every so slightly better predictions, but more interpretable
+```
+As another method for variable selection, we conducted a LASSO linear regression.  Comparing the minimum and 1-SE values, test set predictions were nearly identical for the two models, each with a percent correctly classified of just north of 77\% and specificity of 79\%.  However, the 1-SE version selected fewer variables as important compared with the minimum model selecting all variables except for AnyHealthcare and ln.BMI.  These recommended variables will give us another option to construct potentially smaller and more interpretable models and, at a minimum, will give us alternatives to compare the full models with.
+
+# LDA
+```{r}
+health_lda <- lda(HeartDiseaseorAttack ~ . , CV = TRUE, data = new_train)
+
+# LOO CV Confusion Matrix
+table(new_train$HeartDiseaseorAttack, health_lda$class)
+# PCC = 77
+# Specificity = 79.94
+
+# 10 fold CV
+health_lda_xval <- rep(0, length = nrow(new_train))
+x <- rep(1:10, length = nrow(new_train))
+x <- sample(x)
+for(i in 1:10){
+  xtrain <- new_train[x != i, ]
+  xtest <- new_train[x == i, ]
+  glub <- lda(HeartDiseaseorAttack ~ . , data = xtrain)
+  health_lda_xval[x == i] <- predict(glub, xtest)$class
+}
+
+table(new_train$HeartDiseaseorAttack, health_lda_xval)
+# PCC = 76.99
+# Specificity = 79.91
+
+
+# Using RF variables
+health_lda_rf <- lda(HeartDiseaseorAttack ~ . , CV = TRUE, data = rf_best_features)
+
+# LOO CV Confusion Matrix
+table(rf_best_features$HeartDiseaseorAttack, health_lda_rf$class)
+# PCC = 75.54
+# Specificity = 79.10
+# Slightly lower than full feature set
+
+# 10 fold CV
+health_lda_xval <- rep(0, length = nrow(rf_best_features))
+x <- rep(1:10, length = nrow(rf_best_features))
+x <- sample(x)
+for(i in 1:10){
+  xtrain <- rf_best_features[x != i, ]
+  xtest <- rf_best_features[x == i, ]
+  glub <- lda(HeartDiseaseorAttack ~ . , data = xtrain)
+  health_lda_xval[x == i] <- predict(glub, xtest)$class
+}
+
+table(rf_best_features$HeartDiseaseorAttack, health_lda_xval)
+# PCC = 75.23
+# Specificity = 79.07
+# Slightly lower than full feature set
+
+
+# Using LASSO variables
+health_lda_lasso <- lda(HeartDiseaseorAttack ~ . , CV = TRUE, data = lasso_best_features)
+
+# LOO CV Confusion Matrix
+table(lasso_best_features$HeartDiseaseorAttack, health_lda_lasso$class)
+# PCC = 77.07
+# Specificity = 79.99
+# Slightly better than full feature set
+
+# 10 fold CV
+health_lda_xval <- rep(0, length = nrow(lasso_best_features))
+x <- rep(1:10, length = nrow(lasso_best_features))
+x <- sample(x)
+for(i in 1:10){
+  xtrain <- lasso_best_features[x != i, ]
+  xtest <- lasso_best_features[x == i, ]
+  glub <- lda(HeartDiseaseorAttack ~ . , data = xtrain)
+  health_lda_xval[x == i] <- predict(glub, xtest)$class
+}
+
+table(lasso_best_features$HeartDiseaseorAttack, health_lda_xval)
+# PCC = 77.09
+# Specificity = 80.01
+# Slightly better than full feature set
+
+```
+We conducted linear discriminant analysis (LDA) on our health data and obtained a cross-validated predictive accuracy of 76.99\% and a specificity of 79.91\%.  Cross-validated predictive accuracy and specificity decreased slightly, to 75.23\% and 79.07\% respectively using the random forest selected subset of predictive variables.  Interestingly, using variables selected by LASSO logistic regression, both values increased slightly to 77.09\% and 80.01\% respectively.
+
+# QDA
+```{r}
+
+health_qda <- qda(HeartDiseaseorAttack ~ . , CV = TRUE, data = new_train)
+
+# LOO CV Confusion Matrix
+table(new_train$HeartDiseaseorAttack, health_qda$class)
+# PCC = 73.16
+# Specificity = 88.23
+
+# 10 fold CV
+health_qda_xval_class <- rep(0, nrow(new_train))
+health_qda_xval_posterior <- rep(0, nrow(new_train))
+xvs <- rep(1:10, length = nrow(new_train))
+xvs <- sample(xvs)
+for(i in 1:10){
+  xtrain <- new_train[xvs != i, ]
+  xtest <- new_train[xvs == i, ]
+  glub <- qda(HeartDiseaseorAttack ~ . , data = xtrain)
+  health_qda_xval_posterior[xvs == i] <- predict(glub, xtest)$posterior[, 2]
+  health_qda_xval_class[xvs == i] <- predict(glub, xtest)$class
+}
+
+table(new_train$HeartDiseaseorAttack, health_qda_xval_class)
+# PCC = 73.15
+# Specificity = 88.25
+
+
+# Using RF variables
+health_qda_rf <- qda(HeartDiseaseorAttack ~ . , CV = TRUE, data = rf_best_features)
+
+# LOO CV Confusion Matrix
+table(rf_best_features$HeartDiseaseorAttack, health_qda_rf$class)
+# PCC = 71.39
+# Specificity = 89.98
+# PCC slightly down, specificity slightly up
+
+# 10 fold CV
+health_qda_xval_class <- rep(0, nrow(rf_best_features))
+health_qda_xval_posterior <- rep(0, nrow(rf_best_features))
+xvs <- rep(1:10, length = nrow(rf_best_features))
+xvs <- sample(xvs)
+for(i in 1:10){
+  xtrain <- rf_best_features[xvs != i, ]
+  xtest <- rf_best_features[xvs == i, ]
+  glub <- qda(HeartDiseaseorAttack ~ . , data = xtrain)
+  health_qda_xval_posterior[xvs == i] <- predict(glub, xtest)$posterior[, 2]
+  health_qda_xval_class[xvs == i] <- predict(glub, xtest)$class
+}
+
+table(rf_best_features$HeartDiseaseorAttack, health_qda_xval_class)
+# PCC = 71.40
+# Specificity = 89.99
+# PCC slightly down, specificity slightly up
+
+
+# Using LASSO variables
+health_qda_lasso <- qda(HeartDiseaseorAttack ~ . , CV = TRUE, data = lasso_best_features)
+
+# LOO CV Confusion Matrix
+table(lasso_best_features$HeartDiseaseorAttack, health_qda_lasso$class)
+# PCC = 72.15
+# Specificity = 89.73
+# PCC slightly down, specificity slightly up
+
+# 10 fold CV
+health_qda_xval_class <- rep(0, nrow(lasso_best_features))
+health_qda_xval_posterior <- rep(0, nrow(lasso_best_features))
+xvs <- rep(1:10, length = nrow(lasso_best_features))
+xvs <- sample(xvs)
+for(i in 1:10){
+  xtrain <- lasso_best_features[xvs != i, ]
+  xtest <- lasso_best_features[xvs == i, ]
+  glub <- qda(HeartDiseaseorAttack ~ . , data = xtrain)
+  health_qda_xval_posterior[xvs == i] <- predict(glub, xtest)$posterior[, 2]
+  health_qda_xval_class[xvs == i] <- predict(glub, xtest)$class
+}
+
+table(lasso_best_features$HeartDiseaseorAttack, health_qda_xval_class)
+# PCC = 72.16
+# Specificity = 89.76
+# PCC slightly down, specificity slightly up
+```
+
+We also conducted quadratic discriminant analysis (QDA) which provided an interesting mix of results.  the cross-validated percent correctly classified is relatively low at 73.15\%; however, the cross-validated specificity is quite high at 88.25\%.  Using the variables selected as most important by random forest, QDA cross-validated predictive accuracy decreased slightly to 71.4\% while specificity increased to 89.99\%.  We observed a similar pattern when the predictor variables selected by LASSO logistic regression, with a cross-validated predictive accuracy decreasing to 72.16\% and specificity increasing to 89.76\%.
