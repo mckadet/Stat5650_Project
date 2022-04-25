@@ -18,6 +18,7 @@ library(klaR)
 library(randomForest)
 library(glmnet)
 library(ggplot2)
+library(knitr)
 ```
 
 ```{r data, include=FALSE}
@@ -82,7 +83,7 @@ ggplot(health, aes(HeartDiseaseorAttack)) +
         panel.background = element_rect(fill = NA))
 ```
 
-When it comes to the predictor variables there are 12 binary, 3 numerical, and 5 factor variables. Having fewer numerical variables is less than desireable, especially when it comes to how the factor variables are coded/binned.  A terrible example of this is the __Income__ variable where the CDC survey sets the highest bucket capped at `$`75,000+.  Due to how low that is for the maximum response allowed, a full third of the observations fall into that category.
+When it comes to the predictor variables there are 12 binary, 3 numerical, and 5 factor variables. Having fewer numerical variables is less than desireable, especially when it comes to how the factor variables are coded/binned.  An example of this terrible survey coding is the __Income__ variable where the CDC survey sets the highest bucket capped at `$`75,000+.  Due to how low that is for the maximum response allowed, a full third of the observations fall into that category.
 
 ```{r, echo=FALSE}
 ggplot(health, aes(Income)) +
@@ -110,7 +111,6 @@ ggplot(health, aes(Income)) +
 
 
 
-
 # Data Dictionary  
 Data found by us at https://www.kaggle.com/datasets/alexteboul/heart-disease-health-indicators-dataset  
 
@@ -119,35 +119,78 @@ Description of variables found in https://www.cdc.gov/brfss/annual_data/2015/pdf
 ## Response Variable  
   
 __HeartDiseaseorAttack__, binary  
+
+```{r}
+summary(health$HeartDiseaseorAttack)
+```
   
 ## Predictor Variables  
   
 __HighBP__, binary  
  - Adults who have been told they have high blood pressure by a doctor, nurse, or other health professional  
+```{r}
+summary(health$HighBP)
+```
 __HighChol__, binary  
 - Have you EVER been told by a doctor, nurse or other health professional that your blood cholesterol is high?  
+```{r}
+summary(health$HighChol)
+```
 __CholCheck__, binary  
 - Cholesterol check within past five years  
+```{r}
+summary(health$CholCheck)
+```
 __BMI__, numerical  
+```{r}
+summary(health$BMI)
+```
 __Smoker__, binary  
 - Have you smoked at least 100 cigarettes in your entire life?  
+```{r}
+summary(health$Smoker)
+```
 __Stroke__, binary  
+```{r}
+summary(health$Stroke)
+```
 __Diabetes__, factor  
 - 0 is no diabetes,  
 - 1 is pre-diabetes  
 - 2 is diabetes  
+```{r}
+summary(health$Diabetes)
+```
 __PhysActivity__, binary  
 - During the past month, other than your regular job, did you participate in any physical activities or exercises such as running, calisthenics, golf, gardening, or walking for exercise?  
+```{r}
+summary(health$PhysActivity)
+```
 __Fruits__, binary  
 - Consume Fruit 1 or more times per day  
+```{r}
+summary(health$Fruits)
+```
 __Veggies__, binary  
 - Consume Vegetables 1 or more times per day  
+```{r}
+summary(health$Veggies)
+```
 __HvyAlcoholConsum__, binary  
 - Heavy drinkers (adult men having more than 14 drinks per week and adult women having more than 7 drinks per week)  
+```{r}
+summary(health$HvyAlcoholConsum)
+```
 __AnyHealthcare__, binary  
 - Do you have any kind of health care coverage, including health insurance, prepaid plans such as HMOs, or government plans such as Medicare, or Indian Health Service?  
+```{r}
+summary(health$AnyHealthcare)
+```
 __NoDocbcCost__, binary  
 - Was there a time in the past 12 months when you needed to see a doctor but could not because of cost?  
+```{r}
+summary(health$NoDocbcCost)
+```
 __GenHlth__, factor  
 - Would you say that in general your health is:  
 - 1 = Excellent  
@@ -155,15 +198,30 @@ __GenHlth__, factor
 - 3 = Good  
 - 4 = Fair  
 - 5 = Poor  
+```{r}
+summary(health$GenHlth)
+```
 __MentHlth__, numerical  
 - Now thinking about your mental health, which includes stress, depression, and problems with emotions, for how many days during the past 30 days was your mental health not good?  
+```{r}
+summary(health$MentHlth)
+```
 __PhysHlth__, numerical  
 - Now thinking about your physical health, which includes physical illness and injury, for how many days during the past 30 days was your physical health not good?   
+```{r}
+summary(health$PhysHlth)
+```
 __DiffWalk__, binary  
 - Do you have serious difficulty walking or climbing stairs?  
+```{r}
+summary(health$DiffWalk)
+```
 __Sex__, binary  
 - 0 = Female  
 - 1 = Male  
+```{r}
+summary(health$Sex)
+```
 __Age__, factor  
 - 1 Age 18 to 24  
 - 2 Age 25 to 29  
@@ -179,6 +237,10 @@ __Age__, factor
 - 12 Age 75 to 79  
 - 13 Age 80 or older  
 - 14 Don't Know / Refused to answer (I removed these as well)  
+```{r}
+summary(health$Age)
+hist(as.numeric(health$Age))
+```
 __Education__, factor  
 - What is the highest grade or year of school you completed?  
 - 1 Never attended school or only kindergarten  
@@ -187,6 +249,10 @@ __Education__, factor
 - 4 Grade 12 or GED (High school graduate)  
 - 5 College 1 year to 3 years (Some college or technical school)  
 - 6 College 4 years or more (College graduate)  
+```{r}
+summary(health$Education)
+hist(as.numeric(health$Education))
+```
 __Income__, factor  
 - Is your annual household income from all sources  
 - 1 Less than `$`10,000  
@@ -197,3 +263,7 @@ __Income__, factor
 - 6 Less than `$`50,000 (`$`35,000 to less than `$`50,000)  
 - 7 Less than `$`75,000 (`$`50,000 to less than `$`75,000)  
 - 8 `$`75,000 or more  
+```{r}
+summary(health$Income)
+hist(as.numeric(health$Income))
+```
