@@ -317,7 +317,7 @@ class.sum(test_sample$HeartDiseaseorAttack, predict(rf, test_sample, type="prob"
 
 ```
 
-We built the random forest using the predictors that the variable importance plot indicated had the largest effects on the random forest's classification ability. Those variables ended up being Age, GenHlth, ln.BMI, Income, HighBP, Education, and HighChol. After creating the random forest, we found that it classified approximately 75% of the training set correctly. The next step was to validate the random forest using the testing set. We saw similar performance, with just under 75% correctly classified. Perhaps more important than the PCC was the sensitivity and specificity which came in at 79% and 70%, respectively. We see a huge increase in the sensitivity, thanks to our upsampling technique. 
+We built the random forest using the predictors that the variable importance plot indicated had the largest effects on the random forest's classification ability. Those variables ended up being Age, GenHlth, ln.BMI, Income, HighBP, Education, and HighChol. After creating the random forest, we found that it classified approximately 75% of the training set correctly. The next step was to validate the random forest using the testing set. We saw similar performance, with just under 75% correctly classified. Perhaps more important than the PCC was the sensitivity and specificity which came in at 79% and 70%, respectively. We see a huge increase in the sensitivity, all thanks to our upsampling technique. 
 
 
 
