@@ -258,14 +258,17 @@ class.sum(test$HeartDiseaseorAttack,
 # Upsample and feature subsets from RF and LASSO
 ```{r}
 ## UpSample to deal with class imbalance
-new_train <- upSample(train[,2:22], as.factor(train[,1]), list=FALSE)
-new_train$HeartDiseaseorAttack <- new_train$Class
-new_train <- new_train[,-22]
+new_train <- upSample(train[,2:22], as.factor(train[,1]), list=FALSE) %>%
+  mutate(HeartDiseaseorAttack = as.numeric(Class)-1)
+
+# new_train$HeartDiseaseorAttack <- new_train$Class
+# new_train <- new_train[,-22]
 
 ## Test Set Upsample ##
-new_test <- upSample(test[,2:22], as.factor(test[,1]), list = FALSE)
-new_test$HeartDiseaseorAttack <- new_test$Class
-new_test <- new_test[,-22]
+new_test <- upSample(test[,2:22], as.factor(test[,1]), list = FALSE) %>%
+  mutate(HeartDiseaseorAttack = as.numeric(Class)-1)
+# new_test$HeartDiseaseorAttack <- new_test$Class
+# new_test <- new_test[,-22]
 
 rf_best_features <- new_train %>% dplyr::select(HeartDiseaseorAttack, Age, GenHlth, ln.BMI, Income, HighBP, Education, HighChol)
 
@@ -299,6 +302,26 @@ class.sum(test$HeartDiseaseorAttack, predict(rf, test, type="prob")[,2], cap = "
 class.sum(train_sample$HeartDiseaseorAttack, predict(rf, type="prob")[,2], cap = "Training Data RF Performance")
 
 ```
+
+# Random Forest
+
+```{r}
+set.seed(89729)
+train_sample <- sample_n(rf_best_features, 10000)
+test_sample <- sample_n(rf_test_features, 10000)
+
+rf <- randomForest(as.factor(HeartDiseaseorAttack) ~ ., data = train_sample, n.trees = 100, importance = TRUE)
+
+class.sum(train_sample$HeartDiseaseorAttack, predict(rf, type="prob")[,2], cap = "Training Data RF Performance")
+class.sum(test_sample$HeartDiseaseorAttack, predict(rf, test_sample, type="prob")[,2], cap = "Test Data RF Performance")
+
+```
+
+We built the random forest using the predictors that the variable importance plot indicated had the largest effects on the random forest's classification ability. Those variables ended up being Age, GenHlth, ln.BMI, Income, HighBP, Education, and HighChol. After creating the random forest, we found that it classified approximately 75% of the training set correctly. The next step was to validate the random forest using the testing set. We saw similar performance, with just under 75% correctly classified. Perhaps more important than the PCC was the sensitivity and specificity which came in at 79% and 70%, respectively. We see a huge increase in the sensitivity, thanks to our upsampling technique. 
+
+
+
+
 
 # LASSO
 ```{r}
