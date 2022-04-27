@@ -20,6 +20,7 @@ library(glmnet)
 library(ggplot2)
 library(knitr)
 library(gridExtra)
+library(kableExtra)
 ```
 
 ```{r data, include=FALSE}
@@ -187,6 +188,20 @@ lasso_test_features <- new_test %>% dplyr::select(HeartDiseaseorAttack, HighBP,
                                                    Sex, Age, Income, bin.PhysHlth)
 ```
 
+To determine which variables were most important to our analysis, we performed variable selection both through random forest and LASSO logistic regression.  The random forest determined that __Age__, __GenHlth__, __ln.BMI__, __Income__, __HighBP__, __Education__ and __HighChol__ were the most important variables.  While the LASSO preferred __HighBP__, __HIghChol__, __CholCHeck__, __Smoker__, __Stroke__, __Diabetes__, __HvyAlcoholConsump__, __NoDocbcCost__, __GenHlth__, __DiffWalk__, __Sex__, __Age__, __Income__ and __bin.PhysHlth__.  So we see that while there is some overlap between the two, the LASSO selected quite a few more variables as being important to the analysis.  As another method for variable selection, we conducted a LASSO linear regression.  Comparing the minimum and 1-SE values, test set predictions were nearly identical for the two models, each with a percent correctly classified of just north of 77\% and specificity of 79\%.  However, the 1-SE version selected fewer variables as important compared with the minimum model selecting all variables except for AnyHealthcare and ln.BMI.  These recommended variables will give us another option to construct potentially smaller and more interpretable models and, at a minimum, will give us alternatives to compare the full models with.
+
+# LDA
+
+We conducted linear discriminant analysis (LDA) on our health data and obtained a cross-validated predictive accuracy of 76.99\% and a specificity of 79.91\%.  Cross-validated predictive accuracy and specificity decreased slightly, to 75.23\% and 79.07\% respectively using the random forest selected subset of predictive variables.  Interestingly, using variables selected by LASSO logistic regression, both values increased slightly to 77.09\% and 80.01\% respectively.
+
+# QDA
+
+We also conducted quadratic discriminant analysis (QDA) which provided an interesting mix of results.  the cross-validated percent correctly classified is relatively low at 73.15\%; however, the cross-validated specificity is quite high at 88.25\%.  Using the variables selected as most important by random forest, QDA cross-validated predictive accuracy decreased slightly to 71.4\% while specificity increased to 89.99\%.  We observed a similar pattern when the predictor variables selected by LASSO logistic regression, with a cross-validated predictive accuracy decreasing to 72.16\% and specificity increasing to 89.76\%.
+
+# LASSO Logistic Regression
+
+In addition to variable selection, we also used LASSO logistic regression to make predictions on our test.  We first compared the minimum and 1-SE values for lambda, for which the test set predictions were nearly identical for the two models, each with a percent correctly classified of just north of 77\% and specificity of 79\%.  However, the 1-SE version selected fewer variables as important compared with the minimum model which selected all variables except for __AnyHealthcare__ and __ln.BMI__.  Because the 1-SE version gave us a more parsimonious model for approximately equivalent prediction accuracy, we chose to proceed with this version both for variable selection as well as to make predictions on our test set.  
+
 # Random Forests
 
 ```{r}
@@ -220,6 +235,22 @@ We built the random forest using the predictors that the variable importance plo
 
 
 
+# Summary Table
+```{r, echo = FALSE}
+
+results <- data.frame(PCC = c(76.99, 75.23, 77.09, 73.15, 71.40, 72.16, 77.10),
+                      Specificity = c(79.91, 79.07, 80.01, 88.25, 89.99, 89.76,
+                                      79.53))
+rownames(results) <- c("LDA", "LDA w/RF-Selected Variables",
+"LDA w/LASSO-Selected Variables", "QDA", "QDA w/RF-Selected Variables",
+"QDA w/LASSO-Selected Variables", "LASSO Logistic Regression")
+
+results %>% 
+  kbl(caption = "Prediction Results for Individual Methods") %>% 
+  kable_classic(full_width = FALSE, html_font = "Cambria",
+                latex_options = "HOLD_position")
+
+```
 
 
 
