@@ -21,6 +21,7 @@ library(ggplot2)
 library(knitr)
 library(gridExtra)
 library(kableExtra)
+library(caret)
 ```
 
 ```{r data, include=FALSE}
@@ -204,7 +205,7 @@ In addition to variable selection, we also used LASSO logistic regression to mak
 
 # Random Forests
 
-```{r}
+```{r, echo = FALSE, eval = FALSE}
 set.seed(89729)
 train_sample <- sample_n(rf_best_features, 10000)
 test_sample <- sample_n(rf_test_features, 10000)
@@ -213,6 +214,15 @@ rf <- randomForest(as.factor(HeartDiseaseorAttack) ~ ., data = train_sample, n.t
 
 class.sum(train_sample$HeartDiseaseorAttack, predict(rf, type="prob")[,2], cap = "Training Data RF Performance")
 class.sum(test_sample$HeartDiseaseorAttack, predict(rf, test_sample, type="prob")[,2], cap = "Test Data RF Performance")
+
+# Random Forest with LASSO selected variables
+train_sample.lasso <- sample_n(lasso_test_features, 10000)
+test_sample.lasso <- sample_n(lasso_test_features, 10000)
+
+rf.lasso <- randomForest(as.factor(HeartDiseaseorAttack) ~ ., data = train_sample.lasso, n.trees = 100)
+
+class.sum(train_sample.lasso$HeartDiseaseorAttack, predict(rf.lasso, type="prob")[,2], cap = "Training Data RF Performance")
+class.sum(test_sample.lasso$HeartDiseaseorAttack, predict(rf.lasso, test_sample.lasso, type="prob")[,2], cap = "Test Data RF Performance")
 
 ```
 
@@ -238,18 +248,19 @@ We built the random forest using the predictors that the variable importance plo
 # Summary Table
 ```{r, echo = FALSE}
 
-results <- data.frame(PCC = c(76.99, 75.23, 77.09, 73.15, 71.40, 72.16, 77.10),
+results <- data.frame(PCC = c(76.99, 75.23, 77.09, 73.15, 71.40, 72.16, 77.10,74.73,79.11),
                       Specificity = c(79.91, 79.07, 80.01, 88.25, 89.99, 89.76,
-                                      79.53))
+                                      79.53, 69.69,74.45))
 rownames(results) <- c("LDA", "LDA w/RF-Selected Variables",
 "LDA w/LASSO-Selected Variables", "QDA", "QDA w/RF-Selected Variables",
-"QDA w/LASSO-Selected Variables", "LASSO Logistic Regression")
+"QDA w/LASSO-Selected Variables", "LASSO Logistic Regression", "RF w/ RF-Selected Variables", "RF w/ LASSO-Selected Variables")
 
-results %>% 
+results.table <- results %>% 
   kbl(caption = "Prediction Results for Individual Methods") %>% 
   kable_classic(full_width = FALSE, html_font = "Cambria",
                 latex_options = "HOLD_position")
 
+results.table
 ```
 
 
