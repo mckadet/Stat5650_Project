@@ -335,8 +335,8 @@ We built the random forest using the predictors that the variable importance plo
 
 # LASSO
 ```{r}
-health_train_x <- data.matrix(new_train[ , 1:21])
-health_train_y <- as.matrix(new_train[ , 22])
+health_train_x <- data.matrix(train_sample[ , 2:8])
+health_train_y <- as.matrix(train_sample[ , 1])
 
 health_lasso <- glmnet(health_train_x, health_train_y, family = "binomial",
                        alpha = 1)
@@ -384,22 +384,63 @@ new_test <- upSample(test[,2:22], as.factor(test[,1]), list = FALSE)
 new_test$HeartDiseaseorAttack <- new_test$Class
 new_test <- new_test[,-22]
 
-health_test_x <- data.matrix(new_test[ , 1:21])
+health_test_x <- data.matrix(new_test[ , 2:8])
 health_test_y <- as.matrix(new_test[ , 1])
 
 table(new_test$HeartDiseaseorAttack, predict(health_lasso, health_test_x,
                                                 s = lambda_min, type = "class"))
 
+
 # PCC = 77.09
 # Specificity = 79.34
+# 
 
 table(new_test$HeartDiseaseorAttack, predict(health_lasso, health_test_x,
                                                 s = lambda_1se, type = "class"))
+class.sum(new_test$HeartDiseaseorAttack, predict(health_lasso, health_test_x,
+                                                 s = lambda_1se, type = "response"))
 
 # PCC = 77.10
 # Specificity = 79.53
+# 0.5
 
 # 1-SE model seems best, every so slightly better predictions, but more interpretable
+
+
+rf_train_x <- data.matrix(train_sample[ , 2:8])
+rf_train_y <- as.matrix(train_sample[ , 1])
+
+rf_lasso <- glmnet(rf_train_x, rf_train_y, family = "binomial",
+                       alpha = 1)
+rf_cv_lasso <- cv.glmnet(rf_train_x, rf_train_y, family = "binomial",
+                             alpha = 1)
+
+rf_lambda_1se <- rf_cv_lasso$lambda.1se
+
+table(train_sample$HeartDiseaseorAttack, predict(rf_lasso, rf_train_x,
+                                                  s = rf_lambda_1se, type = "class"))
+
+# PCC = 73.91
+# Specificity = 69.81
+# Sensitivity = 22.10
+
+
+las_train_x <- data.matrix(train_sample.lasso[ , 2:15])
+las_train_y <- as.matrix(train_sample.lasso[ , 1])
+
+las_lasso <- glmnet(las_train_x, las_train_y, family = "binomial",
+                       alpha = 1)
+las_cv_lasso <- cv.glmnet(las_train_x, las_train_y, family = "binomial",
+                             alpha = 1)
+
+las_lambda_1se <- las_cv_lasso$lambda.1se
+
+table(train_sample.lasso$HeartDiseaseorAttack, predict(las_lasso, las_train_x,
+                                                  s = las_lambda_1se, type = "class"))
+
+# PCC = 76.68
+# Specificity = 74.78
+# Sensitivity = 21.36
 ```
 As another method for variable selection, we conducted a LASSO linear regression.  Comparing the minimum and 1-SE values, test set predictions were nearly identical for the two models, each with a percent correctly classified of just north of 77\% and specificity of 79\%.  However, the 1-SE version selected fewer variables as important compared with the minimum model selecting all variables except for AnyHealthcare and ln.BMI.  These recommended variables will give us another option to construct potentially smaller and more interpretable models and, at a minimum, will give us alternatives to compare the full models with.
 
@@ -426,10 +467,11 @@ for(i in 1:10){
 table(new_train$HeartDiseaseorAttack, health_lda_xval)
 # PCC = 76.99
 # Specificity = 79.91
+# 50
 
 
 # Using RF variables
-health_lda_rf <- lda(HeartDiseaseorAttack ~ . , CV = TRUE, data = rf_best_features)
+health_lda_rf <- lda(HeartDiseaseorAttack ~ . , CV = TRUE, data = train_sample)
 
 # LOO CV Confusion Matrix
 table(rf_best_features$HeartDiseaseorAttack, health_lda_rf$class)
@@ -438,24 +480,25 @@ table(rf_best_features$HeartDiseaseorAttack, health_lda_rf$class)
 # Slightly lower than full feature set
 
 # 10 fold CV
-health_lda_xval <- rep(0, length = nrow(rf_best_features))
-x <- rep(1:10, length = nrow(rf_best_features))
+health_lda_xval <- rep(0, length = nrow(train_sample))
+x <- rep(1:10, length = nrow(train_sample))
 x <- sample(x)
 for(i in 1:10){
-  xtrain <- rf_best_features[x != i, ]
-  xtest <- rf_best_features[x == i, ]
+  xtrain <- train_sample[x != i, ]
+  xtest <- train_sample[x == i, ]
   glub <- lda(HeartDiseaseorAttack ~ . , data = xtrain)
   health_lda_xval[x == i] <- predict(glub, xtest)$class
 }
 
-table(rf_best_features$HeartDiseaseorAttack, health_lda_xval)
-# PCC = 75.23
-# Specificity = 79.07
+table(train_sample$HeartDiseaseorAttack, health_lda_xval)
+# PCC = 73.57
+# Specificity = 48.60
+# Sensitiviey = 48.36
 # Slightly lower than full feature set
 
 
 # Using LASSO variables
-health_lda_lasso <- lda(HeartDiseaseorAttack ~ . , CV = TRUE, data = lasso_best_features)
+health_lda_lasso <- lda(HeartDiseaseorAttack ~ . , CV = TRUE, data = test_sample.lasso)
 
 # LOO CV Confusion Matrix
 table(lasso_best_features$HeartDiseaseorAttack, health_lda_lasso$class)
@@ -464,19 +507,20 @@ table(lasso_best_features$HeartDiseaseorAttack, health_lda_lasso$class)
 # Slightly better than full feature set
 
 # 10 fold CV
-health_lda_xval <- rep(0, length = nrow(lasso_best_features))
-x <- rep(1:10, length = nrow(lasso_best_features))
+health_lda_xval <- rep(0, length = nrow(test_sample.lasso))
+x <- rep(1:10, length = nrow(test_sample.lasso))
 x <- sample(x)
 for(i in 1:10){
-  xtrain <- lasso_best_features[x != i, ]
-  xtest <- lasso_best_features[x == i, ]
+  xtrain <- test_sample.lasso[x != i, ]
+  xtest <- test_sample.lasso[x == i, ]
   glub <- lda(HeartDiseaseorAttack ~ . , data = xtrain)
   health_lda_xval[x == i] <- predict(glub, xtest)$class
 }
 
-table(lasso_best_features$HeartDiseaseorAttack, health_lda_xval)
-# PCC = 77.09
-# Specificity = 80.01
+table(test_sample.lasso$HeartDiseaseorAttack, health_lda_xval)
+# PCC = 76.81
+# Specificity = 74.63
+# Sensitivity = 20.90
 # Slightly better than full feature set
 
 ```
@@ -511,58 +555,59 @@ table(new_train$HeartDiseaseorAttack, health_qda_xval_class)
 
 
 # Using RF variables
-health_qda_rf <- qda(HeartDiseaseorAttack ~ . , CV = TRUE, data = rf_best_features)
+health_qda_rf <- qda(HeartDiseaseorAttack ~ . , CV = TRUE, data = train_sample)
 
 # LOO CV Confusion Matrix
-table(rf_best_features$HeartDiseaseorAttack, health_qda_rf$class)
+table(train_sample$HeartDiseaseorAttack, health_qda_rf$class)
 # PCC = 71.39
 # Specificity = 89.98
 # PCC slightly down, specificity slightly up
 
 # 10 fold CV
-health_qda_xval_class <- rep(0, nrow(rf_best_features))
-health_qda_xval_posterior <- rep(0, nrow(rf_best_features))
-xvs <- rep(1:10, length = nrow(rf_best_features))
+health_qda_xval_class <- rep(0, nrow(train_sample))
+health_qda_xval_posterior <- rep(0, nrow(train_sample))
+xvs <- rep(1:10, length = nrow(train_sample))
 xvs <- sample(xvs)
 for(i in 1:10){
-  xtrain <- rf_best_features[xvs != i, ]
-  xtest <- rf_best_features[xvs == i, ]
+  xtrain <- train_sample[xvs != i, ]
+  xtest <- train_sample[xvs == i, ]
   glub <- qda(HeartDiseaseorAttack ~ . , data = xtrain)
   health_qda_xval_posterior[xvs == i] <- predict(glub, xtest)$posterior[, 2]
   health_qda_xval_class[xvs == i] <- predict(glub, xtest)$class
 }
 
-table(rf_best_features$HeartDiseaseorAttack, health_qda_xval_class)
+table(train_sample$HeartDiseaseorAttack, health_qda_xval_class)
 # PCC = 71.40
 # Specificity = 89.99
 # PCC slightly down, specificity slightly up
 
 
 # Using LASSO variables
-health_qda_lasso <- qda(HeartDiseaseorAttack ~ . , CV = TRUE, data = lasso_best_features)
+health_qda_lasso <- qda(HeartDiseaseorAttack ~ . , CV = TRUE, data = train_sample.lasso)
 
 # LOO CV Confusion Matrix
-table(lasso_best_features$HeartDiseaseorAttack, health_qda_lasso$class)
+table(train_sample.lasso$HeartDiseaseorAttack, health_qda_lasso$class)
 # PCC = 72.15
 # Specificity = 89.73
 # PCC slightly down, specificity slightly up
 
 # 10 fold CV
-health_qda_xval_class <- rep(0, nrow(lasso_best_features))
-health_qda_xval_posterior <- rep(0, nrow(lasso_best_features))
-xvs <- rep(1:10, length = nrow(lasso_best_features))
+health_qda_xval_class <- rep(0, nrow(train_sample.lasso))
+health_qda_xval_posterior <- rep(0, nrow(train_sample.lasso))
+xvs <- rep(1:10, length = nrow(train_sample.lasso))
 xvs <- sample(xvs)
 for(i in 1:10){
-  xtrain <- lasso_best_features[xvs != i, ]
-  xtest <- lasso_best_features[xvs == i, ]
+  xtrain <- train_sample.lasso[xvs != i, ]
+  xtest <- train_sample.lasso[xvs == i, ]
   glub <- qda(HeartDiseaseorAttack ~ . , data = xtrain)
   health_qda_xval_posterior[xvs == i] <- predict(glub, xtest)$posterior[, 2]
   health_qda_xval_class[xvs == i] <- predict(glub, xtest)$class
 }
 
-table(lasso_best_features$HeartDiseaseorAttack, health_qda_xval_class)
-# PCC = 72.16
-# Specificity = 89.76
+table(train_sample.lasso$HeartDiseaseorAttack, health_qda_xval_class)
+# PCC = 70.94
+# Specificity = 52.63
+# Sensitivity = 10.10
 # PCC slightly down, specificity slightly up
 ```
 
