@@ -160,14 +160,14 @@ See more information on the variables in the __Data Dictionary__ Section at the 
 
 ```{r}
 ## UpSample to deal with class imbalance
-new_train <- upSample(train[,2:22], as.factor(train[,1]), list=FALSE) %>%
+new_train <- upSample(health_train[,2:22], as.factor(health_train[,1]), list=FALSE) %>%
   mutate(HeartDiseaseorAttack = as.numeric(Class)-1)
 
 # new_train$HeartDiseaseorAttack <- new_train$Class
 # new_train <- new_train[,-22]
 
 ## Test Set Upsample ##
-new_test <- upSample(test[,2:22], as.factor(test[,1]), list = FALSE) %>%
+new_test <- upSample(health_test[,2:22], as.factor(health_test[,1]), list = FALSE) %>%
   mutate(HeartDiseaseorAttack = as.numeric(Class)-1)
 # new_test$HeartDiseaseorAttack <- new_test$Class
 # new_test <- new_test[,-22]
@@ -437,4 +437,13 @@ __Income__, factor
 ```{r}
 summary(health$Income)
 hist(as.numeric(health$Income))
+```
+
+
+
+
+
+
+# Appendix: All code for this report
+```{r ref.label=knitr::all_labels(), echo=TRUE, eval=FALSE}
 ```
