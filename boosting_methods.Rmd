@@ -73,7 +73,7 @@ test <- subset(health_subset, health_tmp == TRUE)
 train <- subset(health_subset, health_tmp == FALSE)
 
 ## Randomly sample rows
-train_sample <- sample_n(train, 5000)
+train_sample <- sample_n(new_train, 20000)
 ```
 
 
@@ -125,8 +125,8 @@ class.sum(train_sample$HeartDiseaseorAttack, gbm.xvalpr,
 ## Performance on Test Set
 health.gbm = gbm(HeartDiseaseorAttack ~ . ,distribution="bernoulli", 
                  n.trees=50, data=train_sample)
-class.sum(test$HeartDiseaseorAttack, 
-          predict(health.gbm, newdata = test, type = "response", n.trees = 50), 
+class.sum(test_sample$HeartDiseaseorAttack, 
+          predict(health.gbm, newdata = test_sample, type = "response", n.trees = 50), 
           cap = "Test Data ADA Performance")
 ```
 
@@ -197,9 +197,9 @@ class.sum(train_sample$HeartDiseaseorAttack, svm.xvalpred, cap = "CV SVM Perform
 
 ## Performance on Test Set
 health.svm=svm(as.factor(HeartDiseaseorAttack)~ . ,probability = TRUE,
-               data = train_sample)
-health.svm.resubpred=predict(health.svm, test, probability=TRUE)
-class.sum(test$HeartDiseaseorAttack, 
+               data = train_sample.lasso)
+health.svm.resubpred=predict(health.svm, test_sample.lasso, probability=TRUE)
+class.sum(test_sample.lasso$HeartDiseaseorAttack, 
           attr(health.svm.resubpred,"probabilities")[,2], 
           cap = "Test Data SVM Performance")
 ```
@@ -247,8 +247,8 @@ health.svm = svm(as.factor(HeartDiseaseorAttack)~ . ,
                cost = 32,
                loss = 0,
                n = 200,)
-health.svm.resubpred=predict(health.svm, test, probability=TRUE)
-class.sum(test$HeartDiseaseorAttack, 
+health.svm.resubpred=predict(health.svm, test_sample, probability=TRUE)
+class.sum(test_sample$HeartDiseaseorAttack, 
           attr(health.svm.resubpred,"probabilities")[,2], 
           cap = "Test Data SVM Performance")
 ```

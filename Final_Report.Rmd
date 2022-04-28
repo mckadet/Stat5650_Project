@@ -22,6 +22,7 @@ library(knitr)
 library(gridExtra)
 library(kableExtra)
 library(caret)
+source('kappa_and_class_sum.R')
 ```
 
 ```{r data, include=FALSE}
@@ -149,16 +150,9 @@ See more information on the variables in the __Data Dictionary__ Section at the 
 
 
 
+# Feature subsets from RF and LASSO
 
-
-
-
-
-
-
-# Upsample and feature subsets from RF and LASSO
-
-```{r}
+```{r, echo = FALSE}
 ## UpSample to deal with class imbalance
 new_train <- upSample(health_train[,2:22], as.factor(health_train[,1]), list=FALSE) %>%
   mutate(HeartDiseaseorAttack = as.numeric(Class)-1)
@@ -191,19 +185,26 @@ lasso_test_features <- new_test %>% dplyr::select(HeartDiseaseorAttack, HighBP,
 
 To determine which variables were most important to our analysis, we performed variable selection both through random forest and LASSO logistic regression.  The random forest determined that __Age__, __GenHlth__, __ln.BMI__, __Income__, __HighBP__, __Education__ and __HighChol__ were the most important variables.  While the LASSO preferred __HighBP__, __HIghChol__, __CholCHeck__, __Smoker__, __Stroke__, __Diabetes__, __HvyAlcoholConsump__, __NoDocbcCost__, __GenHlth__, __DiffWalk__, __Sex__, __Age__, __Income__ and __bin.PhysHlth__.  So we see that while there is some overlap between the two, the LASSO selected quite a few more variables as being important to the analysis.  As another method for variable selection, we conducted a LASSO linear regression.  Comparing the minimum and 1-SE values, test set predictions were nearly identical for the two models, each with a percent correctly classified of just north of 77\% and specificity of 79\%.  However, the 1-SE version selected fewer variables as important compared with the minimum model selecting all variables except for AnyHealthcare and ln.BMI.  These recommended variables will give us another option to construct potentially smaller and more interpretable models and, at a minimum, will give us alternatives to compare the full models with.
 
-# LDA
+
+# Upsampling to Handle Class Imbalance
+One of the difficulties with this dataset was the class imbalance in the response, since those that had heart attacks were outnumbered 10 to 1. This resulted in poor specificity in many of the original methods we attempted even with feature selection from Lasso and Random Forest. to improve the model's ability to accurately classify the positive class, we performed upsampling using caret to create new synthetic instances of the positive class. This resulted in a dataset that had more balanced values of the response variable. We then used this upsampled dataset along with the most importance features to perform an analysis.
+
+# Modeling
+After identifying what features would be most helpful for predicting heart disease or attack and handling the class imablance in our response, we used a variety of modeling strategies for prediction. In general, we performed a 70% split in our training and test data and evaluated the model performance based on the test data (after cross-validation).
+
+## LDA
 
 We conducted linear discriminant analysis (LDA) on our health data and obtained a cross-validated predictive accuracy of 76.99\% and a specificity of 79.91\%.  Cross-validated predictive accuracy and specificity decreased slightly, to 75.23\% and 79.07\% respectively using the random forest selected subset of predictive variables.  Interestingly, using variables selected by LASSO logistic regression, both values increased slightly to 77.09\% and 80.01\% respectively.
 
-# QDA
+## QDA
 
 We also conducted quadratic discriminant analysis (QDA) which provided an interesting mix of results.  the cross-validated percent correctly classified is relatively low at 73.15\%; however, the cross-validated specificity is quite high at 88.25\%.  Using the variables selected as most important by random forest, QDA cross-validated predictive accuracy decreased slightly to 71.4\% while specificity increased to 89.99\%.  We observed a similar pattern when the predictor variables selected by LASSO logistic regression, with a cross-validated predictive accuracy decreasing to 72.16\% and specificity increasing to 89.76\%.
 
-# LASSO Logistic Regression
+## LASSO Logistic Regression
 
 In addition to variable selection, we also used LASSO logistic regression to make predictions on our test.  We first compared the minimum and 1-SE values for lambda, for which the test set predictions were nearly identical for the two models, each with a percent correctly classified of just north of 77\% and specificity of 79\%.  However, the 1-SE version selected fewer variables as important compared with the minimum model which selected all variables except for __AnyHealthcare__ and __ln.BMI__.  Because the 1-SE version gave us a more parsimonious model for approximately equivalent prediction accuracy, we chose to proceed with this version both for variable selection as well as to make predictions on our test set.  
 
-# Random Forests
+## Random Forests
 
 ```{r, echo = FALSE, eval = FALSE}
 set.seed(89729)
@@ -226,34 +227,118 @@ class.sum(test_sample.lasso$HeartDiseaseorAttack, predict(rf.lasso, test_sample.
 
 ```
 
-We built the random forest using the predictors that the variable importance plot indicated had the largest effects on the random forest's classification ability. Those variables ended up being Age, GenHlth, ln.BMI, Income, HighBP, Education, and HighChol. After creating the random forest, we found that it classified approximately 75% of the training set correctly. The next step was to validate the random forest using the testing set. We saw similar performance, with just under 75% correctly classified. Perhaps more important than the PCC was the sensitivity and specificity which came in at 79% and 70%, respectively. We see a huge increase in the sensitivity, thanks to our upsampling technique. 
+We built the random forest using the predictors that the variable importance plot indicated had the largest effects on the random forest's classification ability. Those variables ended up being Age, GenHlth, ln.BMI, Income, HighBP, Education, and HighChol. After creating the random forest, we found that it classified approximately 75\% of the training set correctly. The next step was to validate the random forest using the testing set. We saw similar performance, with just under 75\% correctly classified. Perhaps more important than the PCC was the sensitivity and specificity which came in at 79\% and 70\%, respectively. We see a huge increase in the sensitivity, thanks to our upsampling technique. 
 
+## Gradient Boosting
+```{r, echo = FALSE, eval = FALSE}
+## Performance on K Folds CV (10 Folds)
+gbm.xvalpr = rep(0, nrow(train_sample))
+xvs=rep(1:10, length = nrow(train_sample))
+xvs=sample(xvs)
+for(i in 1:10){
+      train = train_sample[xvs!=i,]
+      test = train_sample[xvs==i,]
+      glub=gbm(HeartDiseaseorAttack ~ . ,distribution="bernoulli", 
+               n.trees = 50, data=train)
+      gbm.xvalpr[xvs==i] = predict(glub, newdata = test, 
+                                   type = "response", n.trees=50)
+}
 
+class.sum(train_sample$HeartDiseaseorAttack, gbm.xvalpr, 
+          cap = "CV ADA Performance")
 
+## Performance on Test Set
+health.gbm = gbm(HeartDiseaseorAttack ~ . ,distribution="bernoulli", 
+                 n.trees=50, data=train_sample)
+class.sum(test_sample$HeartDiseaseorAttack, 
+          predict(health.gbm, newdata = test_sample, type = "response", n.trees = 50), 
+          cap = "Test Data ADA Performance")
 
+## Performance on Test Set
+health.gbm = gbm(HeartDiseaseorAttack ~ . ,distribution="bernoulli", 
+                 n.trees=50, data=train_sample.lasso)
+class.sum(test_sample.lasso$HeartDiseaseorAttack, 
+          predict(health.gbm, newdata = test_sample.lasso, type = "response", n.trees = 50), 
+          cap = "Test Data ADA Performance")
+```
 
+Using the same predictors determined important by Random Forest, the gradient boosting models with and without tuning performed fairly well on the test data and similar to random forest, resulting in about 75\% correctly classified percentage on the test data and 74\% sensitivity. In general for this model, the features selected by random forest resulted in higher performance on the test data.
 
+## SVM
+```{r svm_tuned, eval = FALSE, echo = FALSE}
+x = as.matrix(train_sample[,-1])
+y = as.vector(train_sample[,1])
 
+health.svm.tune <- eztune(x, y, method="svm", fast = TRUE, cross = 5)
+health.svm.tune
+## Best hyperparamters:
+#   gamma:  0.03125
+#   cost: 32
+#   loss: 0
+#   n: 200
 
+## Performance on K Folds CV (10 Folds)
+svm.xvalpred = rep(0, nrow(train_sample))
+xvs = rep(1:10, length = nrow(train_sample))
+xvs = sample(xvs)
+for(i in 1:10){
+      train = train_sample[xvs!=i,]
+      test = train_sample[xvs==i,]
+      glub = svm(as.factor(HeartDiseaseorAttack) ~ . ,
+                 probability=TRUE, 
+                 gamma = 0.03125,
+                 cost = 32,
+                 loss = 0,
+                 n = 200,
+                 data = train)
+      svm.xvalpred[xvs==i] = attr(predict(glub, test, probability = TRUE),
+                                "probabilities")[,2]
+}
 
+class.sum(train_sample$HeartDiseaseorAttack, svm.xvalpred, cap = "CV SVM Performance")
 
+## Performance on Test Set
+health.svm = svm(as.factor(HeartDiseaseorAttack)~ . ,
+               probability = TRUE,
+               data = train_sample,
+               gamma = 0.03125,
+               cost = 32,
+               loss = 0,
+               n = 200,)
+health.svm.resubpred=predict(health.svm, test_sample, probability=TRUE)
+class.sum(test_sample$HeartDiseaseorAttack, 
+          attr(health.svm.resubpred,"probabilities")[,2], 
+          cap = "Test Data SVM Performance")
+```
 
+The next model, support vector machines, after tuning performed similar to gradient boosting with tuning with an overall classification accuracy of 75\% and specificity of 70\% for the Rf selected features. However, the model outperformed nearly all other methods once trained on the LASSO select features, with a classification accuracy of 77\% and sensitivity of 75\%. The only model to outperform SVM was random forest in terms of classification accuracy, though SVM also outperformed all other models in terms of sensitivity.
 
-
-
-
-
-
+\newpage
 
 # Summary Table
 ```{r, echo = FALSE}
 
-results <- data.frame(PCC = c(76.99, 75.23, 77.09, 73.15, 71.40, 72.16, 77.10,74.73,79.11),
+results <- data.frame(PCC = c(76.99, 75.23, 77.09, 73.15, 71.40, 72.16, 77.10,
+                              74.73,79.11,75.11,76.10,75.40,77.60),
                       Specificity = c(79.91, 79.07, 80.01, 88.25, 89.99, 89.76,
-                                      79.53, 69.69,74.45))
-rownames(results) <- c("LDA", "LDA w/RF-Selected Variables",
-"LDA w/LASSO-Selected Variables", "QDA", "QDA w/RF-Selected Variables",
-"QDA w/LASSO-Selected Variables", "LASSO Logistic Regression", "RF w/ RF-Selected Variables", "RF w/ LASSO-Selected Variables")
+                                      79.53, 69.69,74.45,72.77,73.72,70.03,75.43),
+                      Sensitivity = c(NA,NA,NA,NA,NA,NA,NA,82.00,87.36,
+                                      77.76,78.52,78.92,79.90))
+rownames(results) <- c("LDA", 
+                       "LDA w/RF-Selected Variables",
+                       "LDA w/LASSO-Selected Variables", 
+                       "QDA", 
+                       "QDA w/RF-Selected Variables",
+                       "QDA w/LASSO-Selected Variables", 
+                       "LASSO Logistic Regression", 
+                       "RF w/ RF-Selected Variables", 
+                       "RF w/ LASSO-Selected Variables",
+                       "GBM Tuned w/ RF-Selected Variables",
+                       "GBM Tuned w/ LASSO-Selected Variables",
+                       "SVM Tuned w/ RF-Selected Variables",
+                       "SVM Tuned w/ LASSO-Selected Variables")
+
+results <- results[order(results$PCC,decreasing=TRUE),]
 
 results.table <- results %>% 
   kbl(caption = "Prediction Results for Individual Methods") %>% 
@@ -262,6 +347,11 @@ results.table <- results %>%
 
 results.table
 ```
+
+# Conclusion
+There were many modeling strategies that proved effective in predicting heart disease or attack. Using random forest and LASSO, we identified features that were considered most important for prediction. Next, we handled the class imablance in the response using upsampling. After taking these measures and performning necessary transformations on the predictor variables, there were several models that performed with about 80\% overall classification accuracy as well as 79\% sensitivity and 75\% specificity. 
+
+The models that achieved these results were random forest, support vector machines (with tuning) and LASSO logisitic regression. Additionally, the features deemed most important by LASSO resulted in higher performance than the random forest selected features on average. The other modeling strategies we employed were not too far behind in terms of performance, but also tended to over or under fit the data.
 
 
 
@@ -274,7 +364,7 @@ Description of variables found in https://www.cdc.gov/brfss/annual_data/2015/pdf
   
 __HeartDiseaseorAttack__, binary  
 
-```{r}
+```{r,echo = FALSE}
 summary(health$HeartDiseaseorAttack)
 ```
   
@@ -282,74 +372,74 @@ summary(health$HeartDiseaseorAttack)
   
 __HighBP__, binary  
  - Adults who have been told they have high blood pressure by a doctor, nurse, or other health professional  
-```{r}
+```{r,echo = FALSE}
 summary(health$HighBP)
 ```
 __HighChol__, binary  
 - Have you EVER been told by a doctor, nurse or other health professional that your blood cholesterol is high?  
-```{r}
+```{r,echo = FALSE}
 summary(health$HighChol)
 ```
 __CholCheck__, binary  
 - Cholesterol check within past five years  
-```{r}
+```{r,echo = FALSE}
 summary(health$CholCheck)
 ```
 __BMI__, numerical  
-```{r}
+```{r,echo = FALSE}
 summary(health$BMI)
 hist(as.numeric(health$BMI))
 ```
 __ln.BMI__, numerical  
 - Logged version of the BMI variable to reduce the impact of outliers and enforce better normality contstraints.  
-```{r}
+```{r,echo = FALSE}
 summary(health$ln.BMI)
 hist(as.numeric(health$ln.BMI))
 ```
 __Smoker__, binary  
 - Have you smoked at least 100 cigarettes in your entire life?  
-```{r}
+```{r,echo = FALSE}
 summary(health$Smoker)
 ```
 __Stroke__, binary  
-```{r}
+```{r,echo = FALSE}
 summary(health$Stroke)
 ```
 __Diabetes__, factor  
 - 0 is no diabetes,  
 - 1 is pre-diabetes  
 - 2 is diabetes  
-```{r}
+```{r,echo = FALSE}
 summary(health$Diabetes)
 ```
 __PhysActivity__, binary  
 - During the past month, other than your regular job, did you participate in any physical activities or exercises such as running, calisthenics, golf, gardening, or walking for exercise?  
-```{r}
+```{r,echo = FALSE}
 summary(health$PhysActivity)
 ```
 __Fruits__, binary  
 - Consume Fruit 1 or more times per day  
-```{r}
+```{r,echo = FALSE}
 summary(health$Fruits)
 ```
 __Veggies__, binary  
 - Consume Vegetables 1 or more times per day  
-```{r}
+```{r,echo = FALSE}
 summary(health$Veggies)
 ```
 __HvyAlcoholConsum__, binary  
 - Heavy drinkers (adult men having more than 14 drinks per week and adult women having more than 7 drinks per week)  
-```{r}
+```{r,echo = FALSE}
 summary(health$HvyAlcoholConsum)
 ```
 __AnyHealthcare__, binary  
 - Do you have any kind of health care coverage, including health insurance, prepaid plans such as HMOs, or government plans such as Medicare, or Indian Health Service?  
-```{r}
+```{r,echo = FALSE}
 summary(health$AnyHealthcare)
 ```
 __NoDocbcCost__, binary  
 - Was there a time in the past 12 months when you needed to see a doctor but could not because of cost?  
-```{r}
+```{r,echo = FALSE}
 summary(health$NoDocbcCost)
 ```
 __GenHlth__, factor  
@@ -359,38 +449,38 @@ __GenHlth__, factor
 - 3 = Good  
 - 4 = Fair  
 - 5 = Poor  
-```{r}
+```{r,echo = FALSE}
 summary(health$GenHlth)
 ```
 __MentHlth__, numerical  
 - Now thinking about your mental health, which includes stress, depression, and problems with emotions, for how many days during the past 30 days was your mental health not good?  
-```{r}
+```{r,echo = FALSE}
 summary(health$MentHlth)
 ```
 __bin.MentHlth__, binary  
 - Binary version of __MentHlth__ where 0 days is coded as 0 and any number of days is coded as 1.
-```{r}
+```{r,echo = FALSE}
 summary(health$bin.MentHlth)
 ```
 __PhysHlth__, numerical  
 - Now thinking about your physical health, which includes physical illness and injury, for how many days during the past 30 days was your physical health not good?   
-```{r}
+```{r,echo = FALSE}
 summary(health$PhysHlth)
 ```
 __bin.PhysHlth__, binary  
 - Binary version of __PhysHlth__ where 0 days is coded as 0 and any number of days is coded as 1.  
-```{r}
+```{r,echo = FALSE}
 summary(health$bin.PhysHlth)
 ```
 __DiffWalk__, binary  
 - Do you have serious difficulty walking or climbing stairs?  
-```{r}
+```{r,echo = FALSE}
 summary(health$DiffWalk)
 ```
 __Sex__, binary  
 - 0 = Female  
 - 1 = Male  
-```{r}
+```{r,echo = FALSE}
 summary(health$Sex)
 ```
 __Age__, factor  
@@ -408,7 +498,7 @@ __Age__, factor
 - 12 Age 75 to 79  
 - 13 Age 80 or older  
 - 14 Don't Know / Refused to answer (I removed these as well)  
-```{r}
+```{r,echo = FALSE}
 summary(health$Age)
 hist(as.numeric(health$Age))
 ```
@@ -420,7 +510,7 @@ __Education__, factor
 - 4 Grade 12 or GED (High school graduate)  
 - 5 College 1 year to 3 years (Some college or technical school)  
 - 6 College 4 years or more (College graduate)  
-```{r}
+```{r,echo = FALSE}
 summary(health$Education)
 hist(as.numeric(health$Education))
 ```
@@ -434,7 +524,7 @@ __Income__, factor
 - 6 Less than `$`50,000 (`$`35,000 to less than `$`50,000)  
 - 7 Less than `$`75,000 (`$`50,000 to less than `$`75,000)  
 - 8 `$`75,000 or more  
-```{r}
+```{r,echo = FALSE}
 summary(health$Income)
 hist(as.numeric(health$Income))
 ```
