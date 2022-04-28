@@ -166,9 +166,13 @@ new_test <- upSample(health_test[,2:22], as.factor(health_test[,1]), list = FALS
 # new_test$HeartDiseaseorAttack <- new_test$Class
 # new_test <- new_test[,-22]
 
-rf_best_features <- new_train %>% dplyr::select(HeartDiseaseorAttack, Age, GenHlth, ln.BMI, Income, HighBP, Education, HighChol)
+rf_best_features <- new_train %>% dplyr::select(HeartDiseaseorAttack, 
+                                                Age, GenHlth, ln.BMI, Income, 
+                                                HighBP, Education, HighChol)
 
-rf_test_features <- new_test %>% dplyr::select(HeartDiseaseorAttack, Age, GenHlth, ln.BMI, Income, HighBP, Education, HighChol)
+rf_test_features <- new_test %>% dplyr::select(HeartDiseaseorAttack, Age, 
+                                               GenHlth, ln.BMI, Income, 
+                                               HighBP, Education, HighChol)
 
 lasso_best_features <- new_train %>% dplyr::select(HeartDiseaseorAttack, HighBP,
                                                    HighChol, CholCheck, Smoker,
@@ -190,31 +194,37 @@ To determine which variables were most important to our analysis, we performed v
 One of the difficulties with this dataset was the class imbalance in the response, since those that had heart attacks were outnumbered 10 to 1. This resulted in poor specificity in many of the original methods we attempted even with feature selection from Lasso and Random Forest. to improve the model's ability to accurately classify the positive class, we performed upsampling using caret to create new synthetic instances of the positive class. This resulted in a dataset that had more balanced values of the response variable. We then used this upsampled dataset along with the most importance features to perform an analysis.
 
 # Modeling
-After identifying what features would be most helpful for predicting heart disease or attack and handling the class imablance in our response, we used a variety of modeling strategies for prediction. In general, we performed a 70% split in our training and test data and evaluated the model performance based on the test data (after cross-validation).
+After identifying what features would be most helpful for predicting heart disease or attack and handling the class imbalance in our response, we used a variety of modeling strategies for prediction. In general, we performed a 70% split in our training and test data and evaluated the model performance based on the test data (after cross-validation).
 
-## LDA
+# Survey of Methods
+Below will be an explanation of the various methods that we tried out on our dataset. We were able to perform most of the methods discussed so far in class, although KNN we were not able to get to work due to the large nature of our dataset and the computational intensity of that process being run. THe rest of our methods will be discussed in the subsections below with a summarized table afterwards.
+
+### LDA
 
 We conducted linear discriminant analysis (LDA) on our health data and obtained a cross-validated predictive accuracy of 76.99\% and a specificity of 79.91\%.  Cross-validated predictive accuracy and specificity decreased slightly, to 75.23\% and 79.07\% respectively using the random forest selected subset of predictive variables.  Interestingly, using variables selected by LASSO logistic regression, both values increased slightly to 77.09\% and 80.01\% respectively.
 
-## QDA
+### QDA
 
 We also conducted quadratic discriminant analysis (QDA) which provided an interesting mix of results.  the cross-validated percent correctly classified is relatively low at 73.15\%; however, the cross-validated specificity is quite high at 88.25\%.  Using the variables selected as most important by random forest, QDA cross-validated predictive accuracy decreased slightly to 71.4\% while specificity increased to 89.99\%.  We observed a similar pattern when the predictor variables selected by LASSO logistic regression, with a cross-validated predictive accuracy decreasing to 72.16\% and specificity increasing to 89.76\%.
 
-## LASSO Logistic Regression
+### LASSO Logistic Regression
 
 In addition to variable selection, we also used LASSO logistic regression to make predictions on our test.  We first compared the minimum and 1-SE values for lambda, for which the test set predictions were nearly identical for the two models, each with a percent correctly classified of just north of 77\% and specificity of 79\%.  However, the 1-SE version selected fewer variables as important compared with the minimum model which selected all variables except for __AnyHealthcare__ and __ln.BMI__.  Because the 1-SE version gave us a more parsimonious model for approximately equivalent prediction accuracy, we chose to proceed with this version both for variable selection as well as to make predictions on our test set.  
 
-## Random Forests
+### Random Forests
 
 ```{r, echo = FALSE, eval = FALSE}
 set.seed(89729)
 train_sample <- sample_n(rf_best_features, 10000)
 test_sample <- sample_n(rf_test_features, 10000)
 
-rf <- randomForest(as.factor(HeartDiseaseorAttack) ~ ., data = train_sample, n.trees = 100, importance = TRUE)
+rf <- randomForest(as.factor(HeartDiseaseorAttack) ~ ., 
+                   data = train_sample, n.trees = 100, importance = TRUE)
 
-class.sum(train_sample$HeartDiseaseorAttack, predict(rf, type="prob")[,2], cap = "Training Data RF Performance")
-class.sum(test_sample$HeartDiseaseorAttack, predict(rf, test_sample, type="prob")[,2], cap = "Test Data RF Performance")
+class.sum(train_sample$HeartDiseaseorAttack, 
+          predict(rf, type="prob")[,2], cap = "Training Data RF Performance")
+class.sum(test_sample$HeartDiseaseorAttack, 
+          predict(rf, test_sample, type="prob")[,2], cap = "Test Data RF Performance")
 
 # Random Forest with LASSO selected variables
 train_sample.lasso <- sample_n(lasso_test_features, 10000)
@@ -229,7 +239,7 @@ class.sum(test_sample.lasso$HeartDiseaseorAttack, predict(rf.lasso, test_sample.
 
 We built the random forest using the predictors that the variable importance plot indicated had the largest effects on the random forest's classification ability. Those variables ended up being Age, GenHlth, ln.BMI, Income, HighBP, Education, and HighChol. After creating the random forest, we found that it classified approximately 75\% of the training set correctly. The next step was to validate the random forest using the testing set. We saw similar performance, with just under 75\% correctly classified. Perhaps more important than the PCC was the sensitivity and specificity which came in at 79\% and 70\%, respectively. We see a huge increase in the sensitivity, thanks to our upsampling technique. 
 
-## Gradient Boosting
+### Gradient Boosting
 ```{r, echo = FALSE, eval = FALSE}
 ## Performance on K Folds CV (10 Folds)
 gbm.xvalpr = rep(0, nrow(train_sample))
@@ -251,20 +261,22 @@ class.sum(train_sample$HeartDiseaseorAttack, gbm.xvalpr,
 health.gbm = gbm(HeartDiseaseorAttack ~ . ,distribution="bernoulli", 
                  n.trees=50, data=train_sample)
 class.sum(test_sample$HeartDiseaseorAttack, 
-          predict(health.gbm, newdata = test_sample, type = "response", n.trees = 50), 
+          predict(health.gbm, newdata = test_sample, 
+                  type = "response", n.trees = 50), 
           cap = "Test Data ADA Performance")
 
 ## Performance on Test Set
 health.gbm = gbm(HeartDiseaseorAttack ~ . ,distribution="bernoulli", 
                  n.trees=50, data=train_sample.lasso)
 class.sum(test_sample.lasso$HeartDiseaseorAttack, 
-          predict(health.gbm, newdata = test_sample.lasso, type = "response", n.trees = 50), 
+          predict(health.gbm, newdata = test_sample.lasso, 
+                  type = "response", n.trees = 50), 
           cap = "Test Data ADA Performance")
 ```
 
 Using the same predictors determined important by Random Forest, the gradient boosting models with and without tuning performed fairly well on the test data and similar to random forest, resulting in about 75\% correctly classified percentage on the test data and 74\% sensitivity. In general for this model, the features selected by random forest resulted in higher performance on the test data.
 
-## SVM
+### SVM
 ```{r svm_tuned, eval = FALSE, echo = FALSE}
 x = as.matrix(train_sample[,-1])
 y = as.vector(train_sample[,1])
@@ -295,7 +307,8 @@ for(i in 1:10){
                                 "probabilities")[,2]
 }
 
-class.sum(train_sample$HeartDiseaseorAttack, svm.xvalpred, cap = "CV SVM Performance")
+class.sum(train_sample$HeartDiseaseorAttack, svm.xvalpred, 
+          cap = "CV SVM Performance")
 
 ## Performance on Test Set
 health.svm = svm(as.factor(HeartDiseaseorAttack)~ . ,
@@ -349,7 +362,7 @@ results.table
 ```
 
 # Conclusion
-There were many modeling strategies that proved effective in predicting heart disease or attack. Using random forest and LASSO, we identified features that were considered most important for prediction. Next, we handled the class imablance in the response using upsampling. After taking these measures and performning necessary transformations on the predictor variables, there were several models that performed with about 80\% overall classification accuracy as well as 79\% sensitivity and 75\% specificity. 
+There were many modeling strategies that proved effective in predicting heart disease or attack. Using random forest and LASSO, we identified features that were considered most important for prediction. Next, we handled the class imbalance in the response using upsampling. After taking these measures and performing necessary transformations on the predictor variables, there were several models that performed with about 80\% overall classification accuracy as well as 79\% sensitivity and 75\% specificity. 
 
 The models that achieved these results were random forest, support vector machines (with tuning) and LASSO logisitic regression. Additionally, the features deemed most important by LASSO resulted in higher performance than the random forest selected features on average. The other modeling strategies we employed were not too far behind in terms of performance, but also tended to over or under fit the data.
 
