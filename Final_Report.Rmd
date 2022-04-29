@@ -334,11 +334,12 @@ The next model, support vector machines, after tuning performed similar to gradi
 ```{r, echo = FALSE}
 
 results <- data.frame(PCC = c(73.57, 76.81, NA, 70.94, 73.91, 76.68,
-                              74.73,79.11,75.11,76.10,75.40,77.60),
+                              74.73, 79.11, 75.11, 76.10, 75.40, 77.60),
                       Specificity = c(48.60, 74.63, NA, 52.63, 69.81,
-                                      74.78, 69.69,74.45,72.77,73.72,70.03,75.43),
-                      Sensitivity = c(48.36,20.90,NA,10.10,22.10,21.36,82.00,87.36,
-                                      77.76,78.52,78.92,79.90))
+                                      74.78, 69.69,74.45,72.77,73.72,70.03, 75.43),
+                      Sensitivity = c(48.36, 20.90, NA, 10.10, 22.10, 21.36, 
+                                       82.00, 87.36, 77.76, 78.52, 78.92, 79.90))
+
 rownames(results) <- c("LDA w/RF-Selected Variables",
                        "LDA w/LASSO-Selected Variables",
                        "QDA w/RF-Selected Variables",
